@@ -142,3 +142,18 @@ help:
 		printf "\n"; \
 	}' \
 	| more $(shell test $(shell uname) = Darwin && echo '--no-init --raw-control-chars')
+
+
+
+#################################################################################
+# PROJECT RULES                                                                 #
+#################################################################################
+
+# Where our interim/feature data lives; adjust if you changed paths
+INTERIM_DIR := data/interim
+FEATURE_DIR := data/features
+
+# Run only the restaurant cleaning step
+.PHONY: clean_restaurants
+clean_restaurants: requirements
+	$(PYTHON_INTERPRETER) -m src.data_prep.clean_restaurants
