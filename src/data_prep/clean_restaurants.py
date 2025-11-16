@@ -159,31 +159,42 @@ def _hash_to_coord_vectorized(keys: np.ndarray, base_lats: np.ndarray, base_lons
 def add_geo_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Add latitude/longitude features with intra-area variance.
-    Uses restaurant name to ensure unique locations within an area.
+    FAILS if any city is missing from CITY_ANCHORS.
     """
     df = df.copy()
     
-    #  Create unique location keys
+    # 🎯 FAIL FAST: Check for unknown cities
+    unique_cities = set(df["city"].unique())
+    known_cities = set(CITY_ANCHORS.keys())
+    unknown_cities = unique_cities - known_cities
+    
+    if unknown_cities:
+        raise ValueError(
+            f"❌ Found unknown cities not in CITY_ANCHORS: {sorted(unknown_cities)}\n"
+            f"Please add them to CITY_ANCHORS dictionary with accurate (lat, lon)."
+        )
+    
+    # Create unique location keys
     keys = (df["city"].astype(str) + "_" + 
             df["area"].astype(str) + "_" + 
             df["name"].astype(str)).str.lower()
     
-    # Get base coordinates for each city
-    bases = df["city"].apply(lambda x: CITY_ANCHORS.get(x,(20.0, 78.0)))
+    # Get base coordinates (now guaranteed to exist)
+    bases = df["city"].map(CITY_ANCHORS)
     
-    # Generate coordinates in vectorized manner
+    # Generate coordinates
     lats, lons = _hash_to_coord_vectorized(
         keys.values,
-        bases.map(lambda x: x[0]).values, # Extract latitude
-        bases.map(lambda x: x[1]).values  # Extract longitude
+        bases.map(lambda x: x[0]).values,
+        bases.map(lambda x: x[1]).values
     )
     
     df["lat"] = lats
     df["lon"] = lons
     
-    # Validate coordinate ranges
-    assert df["lat"].between(-90, 90).all(), "Invalid latitude generated"
-    assert df["lon"].between(-180, 180).all(), "Invalid longitude generated"
+    # Validate
+    assert df["lat"].between(-90, 90).all(), "Invalid latitude"
+    assert df["lon"].between(-180, 180).all(), "Invalid longitude"
     
     return df
 
@@ -217,7 +228,12 @@ def _validate_restaurant_ids(df: pd.DataFrame) -> None:
 # Main Trasformation
 
 def clean_restaurants(input_path: Path = RAW_DATA_PATH) -> pd.DataFrame:
-    """ Main Cleaning pipeline for restaurant data"""
+    """ Main Cleaning pipeline for restaurant data
+    Resets RNG for reproducibility on every call"""
+    
+    global RNG
+    RNG = np.random.default_rng(42)
+    
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
 

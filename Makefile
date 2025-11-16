@@ -143,6 +143,14 @@ help:
 	}' \
 	| more $(shell test $(shell uname) = Darwin && echo '--no-init --raw-control-chars')
 
+	@echo "Available commands:"
+	@echo "  make clean_restaurants   Clean and process raw restaurant data"
+	@echo "  make test-fast          Run fast tests (development)"
+	@echo "  make test               Run all tests (pre-commit)"
+	@echo "  make test-coverage      Run tests with coverage report"
+	@echo ""
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
 
 
 #################################################################################
@@ -157,3 +165,35 @@ FEATURE_DIR := data/features
 .PHONY: clean_restaurants
 clean_restaurants: requirements
 	$(PYTHON_INTERPRETER) -m src.data_prep.clean_restaurants
+
+
+
+# ============================================================================
+# 🧪 TESTING TARGETS
+# ============================================================================
+
+.PHONY: test test-fast test-coverage test-clean
+
+## Run all tests (including slow ones)
+test:
+	@echo "🧪 Running ALL tests..."
+	pytest tests/ -v
+
+## Run only fast tests (skip slow integration tests)
+test-fast:
+	@echo "🚀 Running FAST tests only (skip slow tests)..."
+	pytest tests/ -v -m "not slow"
+
+## Run tests with coverage report
+test-coverage:
+	@echo "📊 Running tests with coverage..."
+	pytest tests/ --cov=src --cov-report=html --cov-report=term-missing
+	@echo "📈 Coverage report: open htmlcov/index.html"
+
+## Clean test cache and coverage files
+test-clean:
+	@echo "🧹 Cleaning test cache..."
+	rm -rf .pytest_cache/
+	rm -rf htmlcov/
+	rm -f .coverage
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
