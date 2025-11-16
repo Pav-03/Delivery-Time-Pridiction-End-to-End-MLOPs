@@ -3,6 +3,7 @@ from pathlib import Path
 import hashlib
 import numpy as np
 import pandas as pd
+from typing import Tuple
 
 
 PROJECT_ROOT=Path(__file__).resolve().parents[2]
@@ -14,6 +15,12 @@ PARQUET_OUT=OUT_DIR/"restaurants_clean.parquet"
 logger = logging.getLogger(__name__)
 
 RNG = np.random.default_rng(42)
+GEO_JITTER_DEGREES = 0.06 #+-3.3km latitude
+GEO_JITTER_KM = GEO_JITTER_DEGREES * 111 # convert to km for reference
+DELIVERY_FEE_BASE_MIN = 20.0
+DELIVERY_FEE_BASE_MAX = 40.0
+DELIVERY_FEE_VARIATION = 10.0 # Random Noise
+
 
 #Config
 EXPECTED_COLS = {
@@ -60,6 +67,7 @@ PRICE_MAX = 3000.0
 
 # Helpers
 def _normalize_colnames(df: pd.DataFrame) -> pd.DataFrame:
+    """ Normalize the columns to lowercase with underscore."""
     df = df.copy()
     df.columns = (
         df.columns
@@ -79,12 +87,14 @@ def _canonical_city(s: pd.Series) -> pd.Series:
      return s_norm.map(lambda x: CITY_ALIASES.get(x, x))
 
 def _clean_price(series: pd.Series) -> pd.Series:
+     """ Clean price column: coerce to numeric, trat <=0 as NaN."""
      s = pd.to_numeric(series, errors="coerce")
      #treat <=0 as missing; impute later; then cap
      s = s.mask(s <= 0, np.nan)
      return s
 
 def _assign_price_band(price: pd.Series) -> pd.Series:
+     """ Assign price band labels based on numeric ranges."""
      return pd.cut(
           price,
           bins=[0,250,500,800, np.inf],
@@ -94,6 +104,7 @@ def _assign_price_band(price: pd.Series) -> pd.Series:
      )
 
 def _clean_cuisines_to_list(series: pd.Series) -> pd.Series:
+     """ Parse cuisines string into clean list."""
      def parse(x: str):
           if pd.isna(x):
                return []
@@ -101,6 +112,7 @@ def _clean_cuisines_to_list(series: pd.Series) -> pd.Series:
      return series.apply(parse)
      
 def _cuisines_list_to_str(series: pd.Series) -> pd.Series:
+    """ Convert cuisines list to display string."""
     import ast
 
     def to_str(val):
@@ -129,47 +141,56 @@ def _cuisines_list_to_str(series: pd.Series) -> pd.Series:
     return series.apply(to_str)
 
 
-def _hash_to_coord(text: str, base_lat: float, base_lon: float) -> tuple[float, float]:
-     h = int(hashlib.sha256(text.encode("utf-8")).hexdigest(), 16)
-     lat_jitter = ((h % 1000) /1000 - 0.5)*0.06 #~+- 0.03
-     lon_jitter = ((h % 1000) /1000 - 0.5)*0.06
-     return base_lat + lat_jitter, base_lon + lon_jitter
+def _hash_to_coord_vectorized(keys: np.ndarray, base_lats: np.ndarray, base_lons: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Vectorized version of coordinate generation.
+    Generates deterministic jitter for each unique key.
+    """
+    def hash_single(key: str, base_lat: float, base_lon: float) -> Tuple[float, float]:
+        h = int(hashlib.sha256(key.encode("utf-8")).hexdigest(), 16)
+        # Use different parts of hash for lat/lon to avoid correlation
+        lat_jitter = ((h % 1000) / 1000 - 0.5) * GEO_JITTER_DEGREES
+        lon_jitter = ((h // 1000 % 1000) / 1000 - 0.5) * GEO_JITTER_DEGREES
+        return base_lat + lat_jitter, base_lon + lon_jitter
+    
+    vfunc = np.vectorize(hash_single)
+    return vfunc(keys, base_lats, base_lons)
 
 def add_geo_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add latitude/longitude features with intra-area variance.
+    Uses restaurant name to ensure unique locations within an area.
+    """
     df = df.copy()
-    lats, lons = [], []
-
-    # sanity: make sure helper is a function
-    assert callable(_hash_to_coord), (
-        f"_hash_to_coord is not callable; got type={type(_hash_to_coord)}. "
-        "Did a variable accidentally overwrite the function name?"
+    
+    #  Create unique location keys
+    keys = (df["city"].astype(str) + "_" + 
+            df["area"].astype(str) + "_" + 
+            df["name"].astype(str)).str.lower()
+    
+    # Get base coordinates for each city
+    bases = df["city"].apply(lambda x: CITY_ANCHORS.get(x,(20.0, 78.0)))
+    
+    # Generate coordinates in vectorized manner
+    lats, lons = _hash_to_coord_vectorized(
+        keys.values,
+        bases.map(lambda x: x[0]).values, # Extract latitude
+        bases.map(lambda x: x[1]).values  # Extract longitude
     )
-
-    for i, row in df.iterrows():
-        city = str(row["city"]).strip().lower()
-        area = str(row["area"]).strip().lower()
-
-        base = CITY_ANCHORS.get(city, (20.0, 78.0))
-        if not (isinstance(base, (tuple, list)) and len(base) == 2):
-            raise ValueError(
-                f"CITY_ANCHORS[{city!r}] must be a (lat, lon) pair. Got: {base!r}"
-            )
-
-        latlon = _hash_to_coord(f"{city}_{area}", float(base[0]), float(base[1]))
-        if not (isinstance(latlon, (tuple, list)) and len(latlon) == 2):
-            raise ValueError(
-                f"_hash_to_coord returned invalid value for city={city}, area={area}: {latlon!r}"
-            )
-
-        lats.append(float(latlon[0]))
-        lons.append(float(latlon[1]))
-
+    
     df["lat"] = lats
     df["lon"] = lons
+    
+    # Validate coordinate ranges
+    assert df["lat"].between(-90, 90).all(), "Invalid latitude generated"
+    assert df["lon"].between(-180, 180).all(), "Invalid longitude generated"
+    
     return df
 
 
-def _validate_schema(df_raw: pd.DataFrame) -> pd.DataFrame:
+def _validate_schema(df_raw: pd.DataFrame) -> None:
+     
+     """ Validate input schema has required columns"""
      cols = set(df_raw.columns.str.strip().str.lower().str.replace(" ", "_"))
      missing = EXPECTED_COLS - cols
      if missing:
@@ -178,10 +199,25 @@ def _validate_schema(df_raw: pd.DataFrame) -> pd.DataFrame:
                f"Found: {sorted(list(cols))[:12]}..."
 
           )
+     
+def _validate_restaurant_ids(df: pd.DataFrame) -> None:
+
+    """Ensure restaurant_id is unique before processing."""
+
+    n_unique = df["restaurant_id"].nunique()
+    n_total = len(df)
+    if n_unique != n_total:
+        duplicates = df["restaurant_id"].value_counts().head()
+        raise ValueError(
+            f"Found {n_total - n_unique} duplicate restaurant_id values. "
+            f"Total rows: {n_total}, Unique IDs: {n_unique}. "
+            f"Example duplicates:\n{duplicates}"
+        )
 
 # Main Trasformation
 
 def clean_restaurants(input_path: Path = RAW_DATA_PATH) -> pd.DataFrame:
+    """ Main Cleaning pipeline for restaurant data"""
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
 
@@ -202,6 +238,8 @@ def clean_restaurants(input_path: Path = RAW_DATA_PATH) -> pd.DataFrame:
         "delivery_time": "base_delivery_time_min",
     })
 
+    _validate_restaurant_ids(df)
+
     n0 = len(df)
     logger.info("Rows loaded: %d", n0)
 
@@ -217,6 +255,7 @@ def clean_restaurants(input_path: Path = RAW_DATA_PATH) -> pd.DataFrame:
     df["avg_menu_price"] = _clean_price(df["price"])
     df.drop(columns=["price"], inplace=True)
 
+    # Log missing price by city.
     null_by_city = (
         df.assign(isnull=df["avg_menu_price"].isna())
           .groupby("city")["isnull"].mean()
@@ -237,7 +276,6 @@ def clean_restaurants(input_path: Path = RAW_DATA_PATH) -> pd.DataFrame:
 
     # Cuisines: keep list (model) and pretty string (UI)
     cuisines_list = _clean_cuisines_to_list(df["cuisines_raw"])
-    df["cuisines"] = cuisines_list                       # list-like for modeling
     df["cuisines_str"] = _cuisines_list_to_str(cuisines_list)  # display string
     df.drop(columns=["cuisines_raw"], inplace=True)
 
@@ -254,12 +292,19 @@ def clean_restaurants(input_path: Path = RAW_DATA_PATH) -> pd.DataFrame:
     # Geo + synthetic delivery fee
     df = add_geo_features(df)
 
+    # Warn about unknown city.
     unknown_city_ratio = 1.0 - df["city"].isin(CITY_ANCHORS.keys()).mean()
     if unknown_city_ratio > 0.2:
         logger.warning("Unknown city anchors for %.1f%% rows. Consider extending CITY_ANCHORS.",
                        100 * unknown_city_ratio)
 
-    df["delivery_fee"] = (df["avg_menu_price"] * 0.05).clip(10, 60).round(0)
+    # Delivery Fees.
+    df["delivery_fee"] = RNG.uniform(
+        DELIVERY_FEE_BASE_MIN, 
+        DELIVERY_FEE_BASE_MAX, 
+        size=len(df)
+    ) + RNG.normal(0, DELIVERY_FEE_VARIATION, size=len(df))
+    df["delivery_fee"] = df["delivery_fee"].clip(15, 80).round(2)
 
     # Remove duplicate restaurants
     before = len(df)
@@ -271,8 +316,38 @@ def clean_restaurants(input_path: Path = RAW_DATA_PATH) -> pd.DataFrame:
     logger.info("Cleaning complete. Final rows: %d, columns: %d", len(df), df.shape[1])
     return df
 
+# Validation Report Function
+def generate_validation_report(df: pd.DataFrame) -> dict:
+    """Generate a data quality report for the cleaned dataset."""
+    report = {
+        "total_restaurants": len(df),
+        "unique_restaurant_ids": df["restaurant_id"].nunique(),
+        "cities_covered": df["city"].nunique(),
+        "avg_menu_price_mean": df["avg_menu_price"].mean(),
+        "avg_menu_price_std": df["avg_menu_price"].std(),
+        "missing_coordinates": df[["lat", "lon"]].isna().sum().to_dict(),
+        "invalid_delivery_time": (df["base_delivery_time_min"] <= 0).sum(),
+        "price_outliers": ((df["avg_menu_price"] < PRICE_MIN) | (df["avg_menu_price"] > PRICE_MAX)).sum(),
+        "delivery_fee_stats": {
+            "min": df["delivery_fee"].min(),
+            "max": df["delivery_fee"].max(),
+            "mean": df["delivery_fee"].mean(),
+        }
+    }
+    
+    # Pass/fail criteria
+    report["passed"] = all([
+        report["total_restaurants"] == report["unique_restaurant_ids"],
+        report["missing_coordinates"]["lat"] == 0,
+        report["missing_coordinates"]["lon"] == 0,
+        report["invalid_delivery_time"] == 0,
+        report["price_outliers"] == 0,
+    ])
+    
+    return report
+
 def main():
-    # Configure logging only when running as script
+    """ Main Excecution function"""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
@@ -281,7 +356,19 @@ def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     df_clean = clean_restaurants()
-    # CSV
+
+    # Generate and log validation report
+    report = generate_validation_report(df_clean)
+    logger.info("Data Validation Report:\n%s", pd.Series(report).to_string())
+    
+    if not report["passed"]:
+        logger.error("Data validation FAILED. Check issues above.")
+        # Don't exit - let user decide if they want to proceed
+    else:
+        logger.info("Data validation PASSED.")
+
+    # Save CSV
+
     df_clean.to_csv(CSV_OUT, index=False)
     logger.info("Saved CSV -> %s", CSV_OUT)
 
