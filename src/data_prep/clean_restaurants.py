@@ -4,6 +4,9 @@ import hashlib
 import numpy as np
 import pandas as pd
 from typing import Tuple
+from src.common.params import load_params
+
+_PARAMS = load_params()
 
 
 PROJECT_ROOT=Path(__file__).resolve().parents[2]
@@ -14,12 +17,14 @@ PARQUET_OUT=OUT_DIR/"restaurants_clean.parquet"
 
 logger = logging.getLogger(__name__)
 
-RNG = np.random.default_rng(42)
-GEO_JITTER_DEGREES = 0.06 #+-3.3km latitude
-GEO_JITTER_KM = GEO_JITTER_DEGREES * 111 # convert to km for reference
-DELIVERY_FEE_BASE_MIN = 20.0
-DELIVERY_FEE_BASE_MAX = 40.0
-DELIVERY_FEE_VARIATION = 10.0 # Random Noise
+# Get constants from params
+RNG = np.random.default_rng(_PARAMS["seed"])
+PRICE_MIN = _PARAMS["restaurants"]["price"]["min"]
+PRICE_MAX = _PARAMS["restaurants"]["price"]["max"]
+DELIVERY_FEE_BASE_MIN = _PARAMS["restaurants"]["delivery_fee"]["base_min"]
+DELIVERY_FEE_BASE_MAX = _PARAMS["restaurants"]["delivery_fee"]["base_max"]
+DELIVERY_FEE_VARIATION = _PARAMS["restaurants"]["delivery_fee"]["variation"]
+GEO_JITTER_DEGREES = _PARAMS["restaurants"]["location_jitter"]
 
 
 #Config
@@ -60,10 +65,6 @@ CITY_ANCHORS = {
     "ahmedabad": (23.0225, 72.5714),
     "surat": (21.1702, 72.8311),
 }
-
-# Price Caps for tame outliers
-PRICE_MIN = 50.0
-PRICE_MAX = 3000.0
 
 # Helpers
 def _normalize_colnames(df: pd.DataFrame) -> pd.DataFrame:
@@ -170,7 +171,7 @@ def add_geo_features(df: pd.DataFrame) -> pd.DataFrame:
     
     if unknown_cities:
         raise ValueError(
-            f"❌ Found unknown cities not in CITY_ANCHORS: {sorted(unknown_cities)}\n"
+            f"Found unknown cities not in CITY_ANCHORS: {sorted(unknown_cities)}\n"
             f"Please add them to CITY_ANCHORS dictionary with accurate (lat, lon)."
         )
     
@@ -233,7 +234,7 @@ def clean_restaurants(input_path: Path = RAW_DATA_PATH) -> pd.DataFrame:
     
     global RNG
     RNG = np.random.default_rng(42)
-    
+
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
 
