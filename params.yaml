@@ -1,0 +1,32 @@
+
+# 🎲 Reproducibility
+seed: 42
+
+# Paths (relative to project root)
+paths:
+  raw: "data/raw/swiggy.csv"
+  interim: "data/interim"
+  
+
+# Restaurant cleaning parameters
+restaurants:
+  price:
+    min: 50.0
+    max: 3000.0
+  
+  delivery_fee:
+    base_min: 20.0
+    base_max: 40.0
+    variation: 10.0
+  
+  # Location jitter in degrees (±3.3km at equator)
+  location_jitter: 0.06
+  
+  # Export filenames
+  output_name: "restaurants_clean"
+
+# User generation parameters
+users:
+  total: 50000
+  max_fav_cuisines: 5
+  output_name: "users"
