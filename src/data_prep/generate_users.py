@@ -170,6 +170,14 @@ def generate_users(restaurants_path: Path, n_users: int, max_fav_cuisines: int, 
     
     df["home_lat"] = home_lats
     df["home_lon"] = home_lons
+
+    # VALIDATION: Ensure all coordinates are within bounds
+    bounds = _PARAMS["restaurants"]["bounds"]
+    if not df["home_lat"].between(bounds["lat_min"], bounds["lat_max"]).all():
+        raise AssertionError(f"Users have latitudes outside bounds {bounds['lat_min']}-{bounds['lat_max']}")
+    if not df["home_lon"].between(bounds["lon_min"], bounds["lon_max"]).all():
+        raise AssertionError(f"Users have longitudes outside bounds {bounds['lon_min']}-{bounds['lon_max']}")
+    
     
     return df
 
