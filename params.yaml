@@ -19,6 +19,13 @@ restaurants:
     base_max: 40.0
     variation: 10.0
   
+  # India geographic bounds (for validation)
+  bounds:
+    lat_min: 8.0
+    lat_max: 37.0
+    lon_min: 68.0
+    lon_max: 97.0
+  
   # Location jitter in degrees (±3.3km at equator)
   location_jitter: 0.06
   

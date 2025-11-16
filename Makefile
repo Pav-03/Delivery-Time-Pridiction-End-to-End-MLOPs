@@ -166,34 +166,50 @@ FEATURE_DIR := data/features
 clean_restaurants: requirements
 	$(PYTHON_INTERPRETER) -m src.data_prep.clean_restaurants
 
+## 👥 Generate synthetic users (NEW TARGET)
+.PHONY: generate_users
+generate_users: clean_restaurants
+	@echo "👥 Generating synthetic users..."
+	$(PYTHON_INTERPRETER) -m src.data_prep.generate_users
+
+## 🔄 Run full data pipeline
+.PHONY: data
+data: clean_restaurants generate_users
+	@echo "✅ Full data pipeline complete!"
 
 
 # ============================================================================
 # 🧪 TESTING TARGETS
 # ============================================================================
 
-.PHONY: test test-fast test-coverage test-clean
-
-## Run all tests (including slow ones)
+## Run ALL tests (including slow integration tests)
+.PHONY: test
 test:
 	@echo "🧪 Running ALL tests..."
 	pytest tests/ -v
 
-## Run only fast tests (skip slow integration tests)
+## Run only fast tests (skip slow)
+.PHONY: test-fast
 test-fast:
-	@echo "🚀 Running FAST tests only (skip slow tests)..."
+	@echo "🚀 Running FAST tests (skip slow)..."
 	pytest tests/ -v -m "not slow"
 
 ## Run tests with coverage report
+.PHONY: test-coverage
 test-coverage:
 	@echo "📊 Running tests with coverage..."
 	pytest tests/ --cov=src --cov-report=html --cov-report=term-missing
-	@echo "📈 Coverage report: open htmlcov/index.html"
+	@echo "📈 Open htmlcov/index.html to view coverage"
 
 ## Clean test cache and coverage files
+.PHONY: test-clean
 test-clean:
-	@echo "🧹 Cleaning test cache..."
-	rm -rf .pytest_cache/
-	rm -rf htmlcov/
-	rm -f .coverage
+	@echo "🧹 Cleaning test artifacts..."
+	rm -rf .pytest_cache/ htmlcov/ .coverage
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
+## 👥 Run ONLY user generation tests (NEW TARGET)
+.PHONY: test-users
+test-users:
+	@echo "👥 Testing user generator..."
+	pytest tests/test_generate_users.py -v
