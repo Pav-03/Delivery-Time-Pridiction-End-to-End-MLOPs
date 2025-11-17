@@ -46,29 +46,34 @@ def sample_order_count() -> int:
 
 def choose_restaurant(
     user: pd.Series, 
-    restaurants: pd.DataFrame, 
-    route_keys: set
+    restaurants_by_city: dict,  # ✅ OPTIMIZED: dict instead of DataFrame
+    route_keys: set,
+    route_lookup_dict: dict     # ✅ OPTIMIZED: dict for O(1) lookups
 ) -> pd.Series:
     """Pick restaurant weighted by cuisine, rating, route existence."""
     city = user["city"]
     user_area = user["home_area"]
     fav_cuisines = str(user["fav_cuisines"]).split(",") if user["fav_cuisines"] else []
 
-    # Filter by city first
-    candidates = restaurants[restaurants["city"] == city].copy()
-    if candidates.empty:
+    # ✅ FAST: O(1) dictionary lookup
+    candidates = restaurants_by_city.get(city)
+    if candidates is None or candidates.empty:
         return None
 
-    # ✅ NEW: Only include restaurants with valid route
-    candidates["route_key"] = candidates.apply(
-        lambda r: f"{city}_{r['area']}_to_{user_area}", axis=1
-    )
-    candidates = candidates[candidates["route_key"].isin(route_keys)]
+    # ✅ FAST: Vectorized route_key creation (no .apply())
+    route_prefix = f"{city}_"
+    route_suffix = f"_to_{user_area}"
+    candidates = candidates.copy()
+    candidates["route_key"] = route_prefix + candidates["area"] + route_suffix
+    
+    # Filter for valid routes
+    valid_mask = candidates["route_key"].isin(route_keys)
+    candidates = candidates[valid_mask]
     
     if candidates.empty:
         return None
 
-    # Weighting logic
+    # Weighting logic (same as before)
     weights = candidates["num_ratings"].clip(lower=10) ** 0.6
     weights *= (candidates["avg_rating"].fillna(3.5) / 5.0) ** 1.2
     
@@ -160,11 +165,26 @@ def generate_orders(
     users = pd.read_csv(users_path)
     routes = pd.read_csv(routes_path, parse_dates=["timestamp"])
     
-    # ✅ NEW: Build route lookup for efficient validation
-    route_lookup = routes.groupby(["route_key", "timestamp"]).first().reset_index()
-    route_keys = set(routes["route_key"].unique())
+    # ✅ OPTIMIZATION #1: Pre-index restaurants by city
+    restaurants_by_city = {
+        city: group.copy() for city, group in restaurants.groupby("city")
+    }
+    print(f"📊 Pre-indexed {len(restaurants_by_city)} cities")
     
-    # ✅ NEW: Time selection with peak weighting
+    # ✅ OPTIMIZATION #2: Build O(1) route lookup dictionary
+    route_lookup = routes.groupby(["route_key", "timestamp"]).first().reset_index()
+    route_lookup_dict = {
+        (row["route_key"], pd.Timestamp(row["timestamp"])): row 
+        for _, row in route_lookup.iterrows()
+    }
+    print(f"📊 Built route lookup dict with {len(route_lookup_dict)} keys")
+    
+    # ✅ OPTIMIZATION #3: Pre-compute route_key templates
+    for city, group in restaurants_by_city.items():
+        group["route_key_prefix"] = f"{city}_" + group["area"] + "_to_"
+    
+    # Regular setup
+    route_keys = set(routes["route_key"].unique())
     all_times = routes["timestamp"].unique()
     time_weights = np.array([
         get_peak_hour_weight(pd.Timestamp(t).hour) * 
@@ -173,7 +193,6 @@ def generate_orders(
     ])
     time_probs = time_weights / time_weights.sum()
     
-    # ✅ NEW: Restaurant capacity tracker
     capacity_tracker = RestaurantCapacityTracker(
         params["orders"]["restaurant_capacity_per_hour"]
     )
@@ -193,8 +212,8 @@ def generate_orders(
             # Pick weighted timestamp
             ts = pd.Timestamp(RNG.choice(all_times, p=time_probs))
             
-            # Pick restaurant with valid route
-            rest = choose_restaurant(user, restaurants, route_keys)
+            # Pick restaurant with optimized function
+            rest = choose_restaurant(user, restaurants_by_city, route_keys, route_lookup_dict)
             if rest is None:
                 continue
             
@@ -202,23 +221,19 @@ def generate_orders(
             if not capacity_tracker.can_accept(rest["restaurant_id"], ts):
                 continue
             
-            # Lookup route data (efficient)
+            # Lookup route data with O(1) dictionary
             route_key = f"{rest['city']}_{rest['area']}_to_{user['home_area']}"
-            route_data = route_lookup[
-                (route_lookup["route_key"] == route_key) & 
-                (route_lookup["timestamp"] == ts)
-            ]
+            route_row = route_lookup_dict.get((route_key, ts))
             
-            if route_data.empty:
+            if route_row is None:
                 continue
             
-            # Extract context
-            row = route_data.iloc[0]
-            distance_km = float(row["distance_km"])
-            traffic_level = float(row["traffic_level"])
-            rain = int(row["rain"])
-            temp = float(row["temperature"])
-            base_eta = float(row["base_eta_minutes"])
+            # Extract context from dictionary (faster than .iloc[0])
+            distance_km = float(route_row["distance_km"])
+            traffic_level = float(route_row["traffic_level"])
+            rain = int(route_row["rain"])
+            temp = float(route_row["temperature"])
+            base_eta = float(route_row["base_eta_minutes"])
             
             # Calculate order details
             num_items = int(np.clip(RNG.poisson(lam=3), 1, 12))
@@ -252,7 +267,7 @@ def generate_orders(
             
             capacity_tracker.increment(rest["restaurant_id"], ts)
             
-            # ✅ NEW: Batch write to avoid memory blowup
+            # Batch write to avoid memory blowup
             if len(orders) >= batch_size:
                 pd.DataFrame(orders).to_csv(output_path, mode="a", header=not output_path.exists(), index=False)
                 orders = []
