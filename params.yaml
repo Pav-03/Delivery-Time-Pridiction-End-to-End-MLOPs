@@ -37,3 +37,34 @@ users:
   total: 50000
   max_fav_cuisines: 5
   output_name: "users"
+
+# Weather & Traffic Data Generation
+days: 30  # How many days of hourly data to generate (30 days = 720 hours)
+
+# Weather Configuration
+weather:
+  city_baselines:  # Average annual temperature per city
+    bangalore: 26
+    mumbai: 29
+    delhi: 24
+    hyderabad: 28
+    pune: 24
+    kolkata: 28
+    chennai: 30
+    ahmedabad: 27
+    surat: 28
+
+# Traffic Configuration
+traffic:
+  city_baselines:  # Base congestion level per city (0.0-1.0)
+    bangalore: 0.7
+    mumbai: 0.7
+    delhi: 0.65
+    hyderabad: 0.55
+    pune: 0.5
+    kolkata: 0.6
+    chennai: 0.55
+    ahmedabad: 0.4
+    surat: 0.4
+  
+  noise_std: 0.08  # Random noise standard deviation for traffic
