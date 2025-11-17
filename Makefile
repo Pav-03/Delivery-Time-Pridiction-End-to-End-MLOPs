@@ -213,3 +213,24 @@ test-clean:
 test-users:
 	@echo "👥 Testing user generator..."
 	pytest tests/test_generate_users.py -v
+
+.PHONY: generate-routes
+generate-routes:  ## Generate route-level weather & traffic data
+	@echo "🌤️ Generating route-level weather & traffic..."
+	@python src/data_prep/fetch_weather_traffic.py
+
+.PHONY: test-routes
+test-routes:  ## Test route data generation
+	@echo "🧪 Testing route data generator..."
+	@pytest tests/test_fetch_weather_traffic.py -v
+
+.PHONY: test-all
+test-all:  ## Run all tests (restaurants, users, routes)
+	@echo "🧪 Running full test suite..."
+	@pytest tests/ -v
+
+# Add route dependencies to existing targets
+data: restaurants_clean.csv users.csv weather-traffic.csv
+
+weather-traffic.csv: $(USERS_PATH) $(RESTAURANTS_PATH)
+	$(MAKE) generate-routes

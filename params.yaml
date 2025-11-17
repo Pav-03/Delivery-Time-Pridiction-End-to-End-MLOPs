@@ -39,7 +39,9 @@ users:
   output_name: "users"
 
 # Weather & Traffic Data Generation
-days: 30  # How many days of hourly data to generate (30 days = 720 hours)
+days: 7  # Start with 1 week, not 30
+#max_routes_per_city: 50  # Temporarily reduce further
+chunk_hours: 24
 
 # Weather Configuration
 weather:
