@@ -294,6 +294,7 @@ def clean_restaurants(input_path: Path = RAW_DATA_PATH) -> pd.DataFrame:
     # Cuisines: keep list (model) and pretty string (UI)
     cuisines_list = _clean_cuisines_to_list(df["cuisines_raw"])
     df["cuisines_str"] = _cuisines_list_to_str(cuisines_list)  # display string
+    df["cuisines"] = df["cuisines_str"]
     df.drop(columns=["cuisines_raw"], inplace=True)
 
     # Sanity filter on base delivery time

@@ -9,12 +9,25 @@ BUCKET = [OPTIONAL] your-bucket-for-syncing-data (do not include 's3://')
 PROFILE = default
 PROJECT_NAME = Delivery-Time-Pridiction-End-to-End-MLOPs
 PYTHON_INTERPRETER = python3
+PYTHON := $(PYTHON_INTERPRETER)  # ✅ FIX: Define PYTHON based on PYTHON_INTERPRETER
+PYTEST := pytest                  # ✅ FIX: Explicitly define pytest
 
 ifeq (,$(shell which conda))
 HAS_CONDA=False
 else
 HAS_CONDA=True
 endif
+
+#################################################################################
+# PATH DEFINITIONS                                                              #
+#################################################################################
+
+INTERIM_DIR := data/interim
+FEATURE_DIR := data/features
+RESTAURANTS_PATH := $(PROJECT_DIR)/data/interim/restaurants_clean.csv
+USERS_PATH := $(PROJECT_DIR)/data/interim/users.csv
+ROUTES_OUT := $(PROJECT_DIR)/data/interim/routes_eta.csv
+ORDERS_OUT := $(PROJECT_DIR)/data/interim/orders.csv
 
 #################################################################################
 # COMMANDS                                                                      #
@@ -80,29 +93,92 @@ test_environment:
 # PROJECT RULES                                                                 #
 #################################################################################
 
+# --- DATA PIPELINE TARGETS ---
 
+.PHONY: clean_restaurants generate_users generate-routes generate-orders clean-orders data
+
+## Clean and process raw restaurant data
+clean_restaurants: requirements
+	$(PYTHON_INTERPRETER) -m src.data_prep.clean_restaurants
+
+## 👥 Generate synthetic users
+generate_users: clean_restaurants
+	@echo "👥 Generating synthetic users..."
+	$(PYTHON_INTERPRETER) -m src.data_prep.generate_users
+
+## 🌤️ Generate route-level weather & traffic data
+generate-routes: $(USERS_PATH) $(RESTAURANTS_PATH)
+	@echo "🌤️ Generating route-level weather & traffic..."
+	$(PYTHON_INTERPRETER) -m src.data_prep.fetch_weather_traffic
+
+## 🛒 Generate synthetic orders
+generate-orders: $(USERS_PATH) $(RESTAURANTS_PATH) $(ROUTES_OUT)
+	@echo "🛒 Generating realistic orders..."
+	@echo "   Using Python: $(PYTHON)"
+	@$(PYTHON) -m src.data_prep.generate_orders
+
+## 🗑️ Clean generated orders
+clean-orders:
+	@rm -f $(ORDERS_OUT)
+	@echo "🗑️ Cleaned orders data"
+
+## ✅ Run full data pipeline
+data: clean_restaurants generate_users generate-routes generate-orders
+	@echo "✅ Full data pipeline complete!"
 
 #################################################################################
-# Self Documenting Commands                                                     #
+# TEST TARGETS                                                                  #
+#################################################################################
+
+.PHONY: test test-fast test-coverage test-clean test-users test-routes test-orders test-all
+
+## Run ALL tests
+test:
+	@echo "🧪 Running ALL tests..."
+	$(PYTEST) tests/ -v
+
+## Run only fast tests (skip slow)
+test-fast:
+	@echo "🚀 Running FAST tests (skip slow)..."
+	$(PYTEST) tests/ -v -m "not slow"
+
+## Run tests with coverage report
+test-coverage:
+	@echo "📊 Running tests with coverage..."
+	$(PYTEST) tests/ --cov=src --cov-report=html --cov-report=term-missing
+	@echo "📈 Open htmlcov/index.html to view coverage"
+
+## Clean test artifacts
+test-clean:
+	@echo "🧹 Cleaning test artifacts..."
+	rm -rf .pytest_cache/ htmlcov/ .coverage
+	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
+## Test user generator
+test-users:
+	@echo "👥 Testing user generator..."
+	$(PYTEST) tests/test_generate_users.py -v
+
+## Test route generator
+test-routes:
+	@echo "🧪 Testing route data generator..."
+	$(PYTEST) tests/test_fetch_weather_traffic.py -v
+
+## Test order generator
+test-orders:
+	@echo "🧪 Testing orders..."
+	$(PYTEST) tests/test_generate_orders.py -v -m "not slow"
+
+## Run full test suite (alias)
+test-all: test
+
+#################################################################################
+# SELF-DOCUMENTING HELP                                                         #
 #################################################################################
 
 .DEFAULT_GOAL := help
 
-# Inspired by <http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html>
-# sed script explained:
-# /^##/:
-# 	* save line in hold space
-# 	* purge line
-# 	* Loop:
-# 		* append newline + line to hold space
-# 		* go to next line
-# 		* if line starts with doc comment, strip comment character off and loop
-# 	* remove target prerequisites
-# 	* append hold space (+ newline) to line
-# 	* replace newline plus comments by `---`
-# 	* print line
-# Separate expressions are necessary because labels cannot be delimited by
-# semicolon; see <http://stackoverflow.com/a/11799865/1968>
+# Inspired by <http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html >
 .PHONY: help
 help:
 	@echo "$$(tput bold)Available rules:$$(tput sgr0)"
@@ -145,92 +221,15 @@ help:
 
 	@echo "Available commands:"
 	@echo "  make clean_restaurants   Clean and process raw restaurant data"
-	@echo "  make test-fast          Run fast tests (development)"
-	@echo "  make test               Run all tests (pre-commit)"
-	@echo "  make test-coverage      Run tests with coverage report"
-	@echo ""
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
-
-
-
-#################################################################################
-# PROJECT RULES                                                                 #
-#################################################################################
-
-# Where our interim/feature data lives; adjust if you changed paths
-INTERIM_DIR := data/interim
-FEATURE_DIR := data/features
-
-# Run only the restaurant cleaning step
-.PHONY: clean_restaurants
-clean_restaurants: requirements
-	$(PYTHON_INTERPRETER) -m src.data_prep.clean_restaurants
-
-## 👥 Generate synthetic users (NEW TARGET)
-.PHONY: generate_users
-generate_users: clean_restaurants
-	@echo "👥 Generating synthetic users..."
-	$(PYTHON_INTERPRETER) -m src.data_prep.generate_users
-
-## 🔄 Run full data pipeline
-.PHONY: data
-data: clean_restaurants generate_users
-	@echo "✅ Full data pipeline complete!"
-
-
-# ============================================================================
-# 🧪 TESTING TARGETS
-# ============================================================================
-
-## Run ALL tests (including slow integration tests)
-.PHONY: test
-test:
-	@echo "🧪 Running ALL tests..."
-	pytest tests/ -v
-
-## Run only fast tests (skip slow)
-.PHONY: test-fast
-test-fast:
-	@echo "🚀 Running FAST tests (skip slow)..."
-	pytest tests/ -v -m "not slow"
-
-## Run tests with coverage report
-.PHONY: test-coverage
-test-coverage:
-	@echo "📊 Running tests with coverage..."
-	pytest tests/ --cov=src --cov-report=html --cov-report=term-missing
-	@echo "📈 Open htmlcov/index.html to view coverage"
-
-## Clean test cache and coverage files
-.PHONY: test-clean
-test-clean:
-	@echo "🧹 Cleaning test artifacts..."
-	rm -rf .pytest_cache/ htmlcov/ .coverage
-	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-
-## 👥 Run ONLY user generation tests (NEW TARGET)
-.PHONY: test-users
-test-users:
-	@echo "👥 Testing user generator..."
-	pytest tests/test_generate_users.py -v
-
-.PHONY: generate-routes
-generate-routes:  ## Generate route-level weather & traffic data
-	@echo "🌤️ Generating route-level weather & traffic..."
-	@python src/data_prep/fetch_weather_traffic.py
-
-.PHONY: test-routes
-test-routes:  ## Test route data generation
-	@echo "🧪 Testing route data generator..."
-	@pytest tests/test_fetch_weather_traffic.py -v
-
-.PHONY: test-all
-test-all:  ## Run all tests (restaurants, users, routes)
-	@echo "🧪 Running full test suite..."
-	@pytest tests/ -v
-
-# Add route dependencies to existing targets
-data: restaurants_clean.csv users.csv weather-traffic.csv
-
-weather-traffic.csv: $(USERS_PATH) $(RESTAURANTS_PATH)
-	$(MAKE) generate-routes
+	@echo "  make generate_users      Generate synthetic users"
+	@echo "  make generate-routes     Generate route-level weather & traffic"
+	@echo "  make generate-orders     Generate synthetic orders"
+	@echo "  make clean-orders        Clean generated orders"
+	@echo "  make data                Run full data pipeline"
+	@echo "  make test                Run all tests"
+	@echo "  make test-fast           Run fast tests only"
+	@echo "  make test-orders         Test order generation"
+	@echo "  make requirements        Install Python dependencies"
+	@echo "  make clean               Clean Python cache files"
+	@echo "  make lint                Lint code with flake8"
+	@echo "  make help                Show this help message"

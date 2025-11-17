@@ -135,7 +135,7 @@ def generate_users(restaurants_path: Path, n_users: int, max_fav_cuisines: int, 
             k = min(max_fav_cuisines, len(all_cuisines))
             fav_list = rng.choice(all_cuisines, size=k, replace=False).tolist()
         
-        fav_cuisines_list.append(fav_list)
+        #fav_cuisines_list.append(fav_list)
         fav_cuisines_str.append(", ".join([c.title() for c in fav_list]))
     
     # Create DataFrame (vectorized)
@@ -144,8 +144,8 @@ def generate_users(restaurants_path: Path, n_users: int, max_fav_cuisines: int, 
         "city": cities,
         "home_area": areas,
         "budget_segment": budgets,
-        "fav_cuisines_list": fav_cuisines_list,
-        "fav_cuisines_str": fav_cuisines_str,
+        #"fav_cuisines_list": fav_cuisines_list,
+        "fav_cuisines": fav_cuisines_str,
     })
     
     # Add home coordinates (deterministic hash)
