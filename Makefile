@@ -169,6 +169,12 @@ test-orders:
 	@echo "🧪 Testing orders..."
 	$(PYTEST) tests/test_generate_orders.py -v -m "not slow"
 
+## Run ONLY fast unit tests (< 10 seconds)
+.PHONY: test-orders-fast
+test-orders-fast:
+	@echo "⚡ Running FAST order tests..."
+	pytest tests/test_generate_orders.py -v -k "not slow" --tb=line
+
 ## Run full test suite (alias)
 test-all: test
 
