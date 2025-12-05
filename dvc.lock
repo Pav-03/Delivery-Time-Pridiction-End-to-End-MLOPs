@@ -1,0 +1,192 @@
+schema: '2.0'
+stages:
+  clean_restaurants:
+    cmd: python src/data_prep/clean_restaurants.py
+    deps:
+    - path: data/raw/swiggy.csv
+      hash: md5
+      md5: 7eab0e448b8d31294f8e154017a0d34a
+      size: 883287
+    - path: src/common/params.py
+      hash: md5
+      md5: d61c4fc319e05def6f434da919a3f013
+      size: 691
+    - path: src/data_prep/clean_restaurants.py
+      hash: md5
+      md5: bda4f016a9dd74dacb92188ef8ddc2ac
+      size: 13924
+    params:
+      params.yaml:
+        restaurants.bounds:
+          lat_min: 8.0
+          lat_max: 37.0
+          lon_min: 68.0
+          lon_max: 97.0
+        restaurants.delivery_fee:
+          base_min: 20.0
+          base_max: 40.0
+          variation: 10.0
+        restaurants.location_jitter: 0.06
+        restaurants.output_name: restaurants_clean
+        restaurants.price:
+          min: 50.0
+          max: 3000.0
+        seed: 42
+    outs:
+    - path: data/interim/restaurants_clean.csv
+      hash: md5
+      md5: 79d01b8008f35c613bdc68e6fd3520ee
+      size: 1509834
+    - path: data/interim/restaurants_clean.parquet
+      hash: md5
+      md5: 80a8e43ef57c7a1fe24e40f222df2f37
+      size: 542479
+    - path: metrics/restaurants_clean.json
+      hash: md5
+      md5: 5a3a1c82890a00f775dea758c44acd10
+      size: 399
+  generate_users:
+    cmd: python src/data_prep/generate_users.py
+    deps:
+    - path: data/interim/restaurants_clean.csv
+      hash: md5
+      md5: 79d01b8008f35c613bdc68e6fd3520ee
+      size: 1509834
+    - path: src/common/params.py
+      hash: md5
+      md5: d61c4fc319e05def6f434da919a3f013
+      size: 691
+    - path: src/data_prep/generate_users.py
+      hash: md5
+      md5: b5aa486cb266c51f573b028b536a5473
+      size: 10686
+    params:
+      params.yaml:
+        restaurants.bounds:
+          lat_min: 8.0
+          lat_max: 37.0
+          lon_min: 68.0
+          lon_max: 97.0
+        restaurants.location_jitter: 0.06
+        seed: 42
+        users.max_fav_cuisines: 5
+        users.output_name: users
+        users.total: 50000
+    outs:
+    - path: data/interim/users.csv
+      hash: md5
+      md5: bc5d23dce7251e335d3e79acbb5581b3
+      size: 5702312
+    - path: data/interim/users.parquet
+      hash: md5
+      md5: b210cbed3b02bb409fd9e1cebaca10b1
+      size: 1685745
+    - path: metrics/users.json
+      hash: md5
+      md5: 38837241cc597310ff3895bb2ee5157e
+      size: 467
+  fetch_weather_traffic:
+    cmd: python src/data_prep/fetch_weather_traffic.py
+    deps:
+    - path: data/interim/restaurants_clean.csv
+      hash: md5
+      md5: 79d01b8008f35c613bdc68e6fd3520ee
+      size: 1509834
+    - path: data/interim/users.csv
+      hash: md5
+      md5: bc5d23dce7251e335d3e79acbb5581b3
+      size: 5702312
+    - path: src/common/params.py
+      hash: md5
+      md5: d61c4fc319e05def6f434da919a3f013
+      size: 691
+    - path: src/data_prep/fetch_weather_traffic.py
+      hash: md5
+      md5: 174b1c218e4fa3c491903788f42a33df
+      size: 13374
+    params:
+      params.yaml:
+        days: 7
+        seed: 42
+        traffic.city_baselines:
+          bangalore: 0.7
+          mumbai: 0.7
+          delhi: 0.65
+          hyderabad: 0.55
+          pune: 0.5
+          kolkata: 0.6
+          chennai: 0.55
+          ahmedabad: 0.4
+          surat: 0.4
+        traffic.noise_std: 0.08
+        weather.city_baselines:
+          bangalore: 26
+          mumbai: 29
+          delhi: 24
+          hyderabad: 28
+          pune: 24
+          kolkata: 28
+          chennai: 30
+          ahmedabad: 27
+          surat: 28
+    outs:
+    - path: data/interim/routes_eta.csv
+      hash: md5
+      md5: 705e9e7c6b8ce56a8ee046a92a4f0c21
+      size: 29930221
+    - path: metrics/routes_eta.json
+      hash: md5
+      md5: 15cee4727f8aa187d3395dcb10b68db7
+      size: 268
+  prepare_orders:
+    cmd: python src/data_prep/generate_orders.py
+    deps:
+    - path: data/interim/restaurants_clean.csv
+      hash: md5
+      md5: 79d01b8008f35c613bdc68e6fd3520ee
+      size: 1509834
+    - path: data/interim/routes_eta.csv
+      hash: md5
+      md5: 705e9e7c6b8ce56a8ee046a92a4f0c21
+      size: 29930221
+    - path: data/interim/users.csv
+      hash: md5
+      md5: bc5d23dce7251e335d3e79acbb5581b3
+      size: 5702312
+    - path: src/common/params.py
+      hash: md5
+      md5: d61c4fc319e05def6f434da919a3f013
+      size: 691
+    - path: src/data_prep/generate_orders.py
+      hash: md5
+      md5: 0542a3a2c899401e840b9c58871934ad
+      size: 12200
+    params:
+      params.yaml:
+        orders:
+          lam: 8
+          max_per_user: 40
+          batch_size: 1000
+          peak_hours:
+          - 12
+          - 13
+          - 18
+          - 19
+          - 20
+          - 21
+          - 22
+          weekend_multiplier: 1.4
+          restaurant_capacity_per_hour: 5
+          basket_value_variance: 0.3
+          cancellation_rate: 0.08
+          status_delayed_threshold: 45
+        seed: 42
+    outs:
+    - path: data/interim/orders.csv
+      hash: md5
+      md5: ff9e64daf338870ba3498b29394bab5e
+      size: 44532295
+    - path: metrics/orders.json
+      hash: md5
+      md5: ff901d22cbc2b6df930be75fe5f61b24
+      size: 626
