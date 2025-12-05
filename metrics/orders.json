@@ -1,0 +1,26 @@
+{
+  "total_orders": 328662,
+  "unique_users": 46319,
+  "unique_restaurants": 7914,
+  "unique_routes": 1715,
+  "avg_basket_value": 1070.6114226469742,
+  "completion_rate": 0.9189045280561793,
+  "delayed_rate": 0.0810954719438207,
+  "cancelled_rate": 0.0,
+  "avg_delivery_time": 15.252533301689883,
+  "avg_base_eta": 7.913564695644764,
+  "eta_vs_actual_gap": 7.338968606045118,
+  "missing_values": {
+    "basket_value": 0,
+    "delivery_time": 0,
+    "route_key": 0
+  },
+  "delivery_time_range": {
+    "min": 15.0,
+    "max": 33.5
+  },
+  "date_range": {
+    "start": "2024-03-25 23:00:00",
+    "end": "2024-03-31 23:00:00"
+  }
+}

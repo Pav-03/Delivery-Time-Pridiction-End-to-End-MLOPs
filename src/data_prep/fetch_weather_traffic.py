@@ -204,6 +204,7 @@ def main():
     seed = int(params["seed"])
     noise_std = float(params.get("traffic", {}).get("noise_std", 0.1))
     chunk_hours = int(params.get("chunk_hours", 24))
+    
     # Load city baselines
     weather_baselines = params.get("weather", {}).get("city_baselines", {})
     traffic_baselines = params.get("traffic", {}).get("city_baselines", {})
@@ -242,7 +243,7 @@ def main():
     all_routes = list(route_gen.route_geometries.keys())
     logger.info("📍 Generating data for %d pre-capped routes", len(all_routes))
     
-    # ==================== INCREMENTAL FILE WRITING (Zero Memory Overhead) ====================
+    # ==================== CREATE THE OUTPUT FILE ====================
     ROUTES_OUT.parent.mkdir(parents=True, exist_ok=True)
     
     # Write headers first
@@ -276,26 +277,43 @@ def main():
             
             # Append to disk immediately (never hold full route in memory)
             route_data.to_csv(ROUTES_OUT, mode="a", header=False, index=False)
+    
+    logger.info("✅ All routes processed")
+    
+    # CRITICAL: Verify file exists
+    if not ROUTES_OUT.exists():
+        raise RuntimeError(f"❌ CRITICAL: File {ROUTES_OUT} was NOT created!")
+    
     logger.info("✅ Route-level ETA data saved: %s", ROUTES_OUT)
-
+    
+    # Load sample for logging and metrics
+    df_sample = pd.read_csv(ROUTES_OUT, nrows=100)
+    
+    # ==================== METRICS GENERATION ====================
+    # Generate pipeline metrics
     metrics = {
-    "total_routes": len(route_gen.route_geometries),
-    "total_timestamps": len(times),
-    "avg_base_eta": df_sample["base_eta_minutes"].mean(),
-    "avg_traffic_level": df_sample["traffic_level"].mean(),
-    "rain_probability": df_sample["rain"].mean(),
+        "total_routes": len(route_gen.route_geometries),
+        "total_timestamps": len(times),
+        "avg_base_eta": float(df_sample["base_eta_minutes"].mean()),
+        "avg_traffic_level": float(df_sample["traffic_level"].mean()),
+        "avg_rain_probability": float(df_sample["rain"].mean()),
+        "avg_temperature": float(df_sample["temperature"].mean()),
+        "avg_distance_km": float(df_sample["distance_km"].mean()),
+        "total_rows_generated": len(pd.read_csv(ROUTES_OUT)),  # Count total rows
     }
-
+    
+    # Write metrics to JSON file
     metrics_dir = PROJECT_ROOT / "metrics"
     metrics_dir.mkdir(parents=True, exist_ok=True)
+    
     with open(metrics_dir / "routes_eta.json", "w") as f:
         json.dump(to_python_types(metrics), f, indent=2)
-    logger.info("📊 Metrics saved: %s", metrics_dir / "routes_eta.json")
     
-    # Load a sample to show
-    df_sample = pd.read_csv(ROUTES_OUT, nrows=5)
-    logger.info("\n📊 Sample routes:\n%s", df_sample.to_string())
+    logger.info("📊 Metrics saved: %s", metrics_dir / "routes_eta.json")
+    # ==================== END METRICS ====================
+    
+    # Log sample
+    logger.info("\n📊 Sample routes:\n%s", df_sample.head().to_string())
 
-# ==================== ENTRY POINT ====================
 if __name__ == "__main__":
     main()

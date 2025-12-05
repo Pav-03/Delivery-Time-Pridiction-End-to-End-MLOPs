@@ -1,0 +1,10 @@
+{
+  "total_routes": 1800,
+  "total_timestamps": 145,
+  "avg_base_eta": 6.439790575916235,
+  "avg_traffic_level": 0.7839766924492789,
+  "avg_rain_probability": 0.04,
+  "avg_temperature": 25.586,
+  "avg_distance_km": 4.100000000000001,
+  "total_rows_generated": 261000
+}

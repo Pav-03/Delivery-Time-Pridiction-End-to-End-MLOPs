@@ -1,0 +1,24 @@
+{
+  "total_users": 50000,
+  "unique_user_ids": 50000,
+  "cities_covered": 9,
+  "budget_segments": {
+    "mid": 25198,
+    "budget": 17168,
+    "premium": 7348,
+    "luxury": 286
+  },
+  "avg_fav_cuisines": 4.86122,
+  "geographic_bounds_check": {
+    "lat_min": 12.941600000000001,
+    "lat_max": 28.64384,
+    "lon_min": 72.5414,
+    "lon_max": 88.39384
+  },
+  "missing_values": {
+    "city": 0,
+    "home_area": 0,
+    "budget_segment": 0,
+    "fav_cuisines": 0
+  }
+}

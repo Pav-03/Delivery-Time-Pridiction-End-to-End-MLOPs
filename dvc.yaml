@@ -20,9 +20,7 @@ stages:
     metrics:
       - metrics/restaurants_clean.json:
           cache: false
-    plots:
-      - plots/restaurant_price_distribution.png:
-          cache: false
+    
 
   generate_users:
     cmd: python src/data_prep/generate_users.py
@@ -45,9 +43,7 @@ stages:
     metrics:
       - metrics/users.json:
           cache: false
-    plots:
-      - plots/user_city_distribution.png:
-          cache: false
+   
 
   fetch_weather_traffic:
     cmd: python src/data_prep/fetch_weather_traffic.py
@@ -68,9 +64,7 @@ stages:
     metrics:
       - metrics/routes_eta.json:
           cache: false
-    plots:
-      - plots/traffic_by_hour.png:
-          cache: false
+    
 
   prepare_orders:
     cmd: python src/data_prep/generate_orders.py
@@ -89,6 +83,4 @@ stages:
     metrics:
       - metrics/orders.json:
           cache: false
-    plots:
-      - plots/order_status_distribution.png:
-          cache: false
+    
