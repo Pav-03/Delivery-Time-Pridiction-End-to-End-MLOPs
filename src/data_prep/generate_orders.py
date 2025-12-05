@@ -1,4 +1,4 @@
-# src/data_prep/generate_orders.py
+
 
 import pandas as pd
 import numpy as np
@@ -7,8 +7,10 @@ from typing import Dict, List, Tuple
 import gc
 import warnings
 warnings.filterwarnings("ignore")
+import json
 
 from src.common.params import load_params
+from src.common.utils import to_python_types
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RESTAURANTS_PATH = PROJECT_ROOT / "data" / "interim" / "restaurants_clean.csv"
@@ -280,6 +282,8 @@ def generate_orders(
         pd.DataFrame(orders).to_csv(output_path, mode="a", header=not output_path.exists(), index=False)
     
     print(f"✅ Saved orders to {output_path}")
+
+    
     
     # Load and return sample
     return pd.read_csv(output_path)
@@ -296,6 +300,48 @@ def main():
         output_path.unlink()
     
     orders = generate_orders(output_path=output_path)
+
+    # ==================== METRICS GENERATION ====================
+    # Generate business and data quality metrics
+    status_dist = orders["order_status"].value_counts(normalize=True)
+
+    metrics = {
+        "total_orders": len(orders),
+        "unique_users": orders["user_id"].nunique(),
+        "unique_restaurants": orders["restaurant_id"].nunique(),
+        "unique_routes": orders["route_key"].nunique(),
+        "avg_basket_value": orders["basket_value"].mean(),
+        "completion_rate": float(status_dist.get("completed", 0)),
+        "delayed_rate": float(status_dist.get("delayed", 0)),
+        "cancelled_rate": float(status_dist.get("cancelled", 0)),
+        "avg_delivery_time": orders["actual_delivery_time_min"].mean(),
+        "avg_base_eta": orders["base_eta_minutes"].mean(),
+        "eta_vs_actual_gap": (orders["actual_delivery_time_min"] - orders["base_eta_minutes"]).mean(),
+        "missing_values": {
+            "basket_value": int(orders["basket_value"].isna().sum()),
+            "delivery_time": int(orders["actual_delivery_time_min"].isna().sum()),
+            "route_key": int(orders["route_key"].isna().sum()),
+        },
+        "delivery_time_range": {
+            "min": float(orders["actual_delivery_time_min"].min()),
+            "max": float(orders["actual_delivery_time_min"].max()),
+        },
+        "date_range": {
+            "start": str(orders["order_created_at"].min()),
+            "end": str(orders["order_created_at"].max()),
+        }
+    }
+
+    # Write metrics to JSON file
+    metrics_dir = PROJECT_ROOT / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+
+    with open(metrics_dir / "orders.json", "w") as f:
+        json.dump(to_python_types(metrics), f, indent=2)
+
+    print(f"📊 Metrics saved: {metrics_dir / 'orders.json'}")
+    # ==================== END METRICS ====================
+    
     print(f"[generate_orders] Final shape: {orders.shape}")
 
 

@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from typing import Tuple
 from src.common.params import load_params
+from src.common.utils import to_python_types
 
 _PARAMS = load_params()
 
@@ -384,6 +385,18 @@ def main():
         # Don't exit - let user decide if they want to proceed
     else:
         logger.info("Data validation PASSED.")
+    
+    import json
+
+    
+    metrics_dir = PROJECT_ROOT / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+
+    # Write metrics to JSON
+    metrics_path = metrics_dir / "restaurants_clean.json"
+    with open(metrics_path, "w") as f:
+        json.dump(to_python_types(report), f, indent=2)
+    logger.info("📊 Metrics saved: %s", metrics_path)
 
     # Save CSV
 

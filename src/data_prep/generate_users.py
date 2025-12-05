@@ -5,6 +5,8 @@ from pathlib import Path
 import hashlib
 
 from src.common.params import load_params
+from src.common.utils import to_python_types
+
 
 _PARAMS = load_params()
 
@@ -224,6 +226,41 @@ def main():
     
     logger.info("✅ All users within geographic bounds")
     
+    # ==================== METRICS GENERATION ====================
+    # Generate quality metrics for tracking
+    metrics = {
+        "total_users": len(df),
+        "unique_user_ids": df["user_id"].nunique(),
+        "cities_covered": df["city"].nunique(),
+        "budget_segments": df["budget_segment"].value_counts().to_dict(),
+        "avg_fav_cuisines": df["fav_cuisines"].str.split(",").apply(lambda x: len(x) if x != [''] else 0).mean(),
+        "geographic_bounds_check": {
+            "lat_min": float(df["home_lat"].min()),
+            "lat_max": float(df["home_lat"].max()),
+            "lon_min": float(df["home_lon"].min()),
+            "lon_max": float(df["home_lon"].max()),
+        },
+        "missing_values": {
+            "city": int(df["city"].isna().sum()),
+            "home_area": int(df["home_area"].isna().sum()),
+            "budget_segment": int(df["budget_segment"].isna().sum()),
+            "fav_cuisines": int(df["fav_cuisines"].isna().sum()),
+        }
+    }
+
+    # Write metrics to JSON file
+    import json
+    from src.common.utils import to_python_types
+    
+    metrics_dir = PROJECT_ROOT / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    
+    with open(metrics_dir / "users.json", "w") as f:
+        json.dump(to_python_types(metrics), f, indent=2)
+    
+    logger.info("📊 Metrics saved: %s", metrics_dir / "users.json")
+    # ==================== END METRICS ====================
+    
     # Log distributions
     logger.info("\n📊 User Distribution:\n%s", df["city"].value_counts().to_string())
     logger.info("\n💰 Budget Segments:\n%s", df["budget_segment"].value_counts().to_string())
@@ -242,7 +279,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 
 

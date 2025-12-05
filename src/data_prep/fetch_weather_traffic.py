@@ -6,8 +6,10 @@ import numpy as np
 import pandas as pd
 import requests
 import itertools
+import json
 
 from src.common.params import load_params
+from src.common.utils import to_python_types
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RESTAURANTS_PATH = PROJECT_ROOT / "data" / "interim" / "restaurants_clean.csv"
@@ -275,6 +277,20 @@ def main():
             # Append to disk immediately (never hold full route in memory)
             route_data.to_csv(ROUTES_OUT, mode="a", header=False, index=False)
     logger.info("✅ Route-level ETA data saved: %s", ROUTES_OUT)
+
+    metrics = {
+    "total_routes": len(route_gen.route_geometries),
+    "total_timestamps": len(times),
+    "avg_base_eta": df_sample["base_eta_minutes"].mean(),
+    "avg_traffic_level": df_sample["traffic_level"].mean(),
+    "rain_probability": df_sample["rain"].mean(),
+    }
+
+    metrics_dir = PROJECT_ROOT / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    with open(metrics_dir / "routes_eta.json", "w") as f:
+        json.dump(to_python_types(metrics), f, indent=2)
+    logger.info("📊 Metrics saved: %s", metrics_dir / "routes_eta.json")
     
     # Load a sample to show
     df_sample = pd.read_csv(ROUTES_OUT, nrows=5)

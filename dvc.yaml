@@ -1,0 +1,94 @@
+stages:
+  clean_restaurants:
+    cmd: python src/data_prep/clean_restaurants.py
+    deps:
+      - src/data_prep/clean_restaurants.py
+      - src/common/params.py
+      - data/raw/swiggy.csv
+    params:
+      - seed
+      - restaurants.price
+      - restaurants.delivery_fee
+      - restaurants.bounds
+      - restaurants.location_jitter
+      - restaurants.output_name
+    outs:
+      - data/interim/restaurants_clean.csv:
+          desc: "Cleaned restaurant data with geo features"
+      - data/interim/restaurants_clean.parquet:
+          desc: "Parquet version for faster I/O"
+    metrics:
+      - metrics/restaurants_clean.json:
+          cache: false
+    plots:
+      - plots/restaurant_price_distribution.png:
+          cache: false
+
+  generate_users:
+    cmd: python src/data_prep/generate_users.py
+    deps:
+      - src/data_prep/generate_users.py
+      - src/common/params.py
+      - data/interim/restaurants_clean.csv
+    params:
+      - seed
+      - users.total
+      - users.max_fav_cuisines
+      - users.output_name
+      - restaurants.bounds
+      - restaurants.location_jitter
+    outs:
+      - data/interim/users.csv:
+          desc: "Synthetic user profiles (50K users)"
+      - data/interim/users.parquet:
+          desc: "Parquet version"
+    metrics:
+      - metrics/users.json:
+          cache: false
+    plots:
+      - plots/user_city_distribution.png:
+          cache: false
+
+  fetch_weather_traffic:
+    cmd: python src/data_prep/fetch_weather_traffic.py
+    deps:
+      - src/data_prep/fetch_weather_traffic.py
+      - src/common/params.py
+      - data/interim/restaurants_clean.csv
+      - data/interim/users.csv
+    params:
+      - days
+      - seed
+      - weather.city_baselines
+      - traffic.city_baselines
+      - traffic.noise_std
+    outs:
+      - data/interim/routes_eta.csv:
+          desc: "Route-level weather/traffic/ETA data (7 days x all routes)"
+    metrics:
+      - metrics/routes_eta.json:
+          cache: false
+    plots:
+      - plots/traffic_by_hour.png:
+          cache: false
+
+  prepare_orders:
+    cmd: python src/data_prep/generate_orders.py
+    deps:
+      - src/data_prep/generate_orders.py
+      - src/common/params.py
+      - data/interim/restaurants_clean.csv
+      - data/interim/users.csv
+      - data/interim/routes_eta.csv
+    params:
+      - seed
+      - orders
+    outs:
+      - data/interim/orders.csv:
+          desc: "Final order dataset for ETA/ETD modeling (500K+ orders)"
+    metrics:
+      - metrics/orders.json:
+          cache: false
+    plots:
+      - plots/order_status_distribution.png:
+          cache: false

@@ -1,0 +1,19 @@
+{
+  "total_restaurants": 8680,
+  "unique_restaurant_ids": 8680,
+  "cities_covered": 9,
+  "avg_menu_price_mean": 348.6794930875576,
+  "avg_menu_price_std": 230.699413068114,
+  "missing_coordinates": {
+    "lat": 0,
+    "lon": 0
+  },
+  "invalid_delivery_time": 0,
+  "price_outliers": 0,
+  "delivery_fee_stats": {
+    "min": 15.0,
+    "max": 74.16,
+    "mean": 30.44756797235023
+  },
+  "passed": true
+}
