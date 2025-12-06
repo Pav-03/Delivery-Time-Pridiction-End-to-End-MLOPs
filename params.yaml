@@ -82,3 +82,9 @@ orders:
   basket_value_variance: 0.3  # ±30% random variation
   cancellation_rate: 0.08     # 8% cancellation rate
   status_delayed_threshold: 45  # ETA > 45 min → likely delayed
+
+# Feature Engineering parameters
+features:
+  output_dir: "data/processed"
+  rolling_window_hours: 3
+  min_samples_per_entity: 10

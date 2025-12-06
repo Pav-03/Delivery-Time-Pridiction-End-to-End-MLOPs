@@ -83,4 +83,28 @@ stages:
     metrics:
       - metrics/orders.json:
           cache: false
+
+  build_features:
+    cmd: python src/data_prep/feature_eta.py
+    deps:
+      - src/data_prep/feature_eta.py
+      - src/common/utils.py
+      - src/common/params.py
+      - data/interim/orders.csv
+      - data/interim/restaurants_clean.csv
+      - data/interim/users.csv
+      - data/interim/routes_eta.csv
+    params:
+      - features.output_dir
+      - features.rolling_window_hours
+      - features.min_samples_per_entity
+    outs:
+      - data/processed/train.parquet:
+          desc: "Training feature matrix (70% of data)"
+      - data/processed/val.parquet:
+          desc: "Validation feature matrix (30% of data)"
+    metrics:
+      - metrics/features.json:
+          cache: false
+  
     

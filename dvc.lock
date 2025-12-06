@@ -190,3 +190,52 @@ stages:
       hash: md5
       md5: ff901d22cbc2b6df930be75fe5f61b24
       size: 626
+  build_features:
+    cmd: python src/data_prep/feature_eta.py
+    deps:
+    - path: data/interim/orders.csv
+      hash: md5
+      md5: ff9e64daf338870ba3498b29394bab5e
+      size: 44532295
+    - path: data/interim/restaurants_clean.csv
+      hash: md5
+      md5: 79d01b8008f35c613bdc68e6fd3520ee
+      size: 1509834
+    - path: data/interim/routes_eta.csv
+      hash: md5
+      md5: 705e9e7c6b8ce56a8ee046a92a4f0c21
+      size: 29930221
+    - path: data/interim/users.csv
+      hash: md5
+      md5: bc5d23dce7251e335d3e79acbb5581b3
+      size: 5702312
+    - path: src/common/params.py
+      hash: md5
+      md5: d61c4fc319e05def6f434da919a3f013
+      size: 691
+    - path: src/common/utils.py
+      hash: md5
+      md5: a3e9561ba75013add34f686fab6a9b92
+      size: 634
+    - path: src/data_prep/feature_eta.py
+      hash: md5
+      md5: 8f5eced3d36dee0d59d92fdba9187805
+      size: 12378
+    params:
+      params.yaml:
+        features.min_samples_per_entity: 10
+        features.output_dir: data/processed
+        features.rolling_window_hours: 3
+    outs:
+    - path: data/processed/train.parquet
+      hash: md5
+      md5: 02f98e7dbdcbebc5f298a7a67bd46595
+      size: 20327415
+    - path: data/processed/val.parquet
+      hash: md5
+      md5: 345045ec2245e5e09bc3f1ca0c478040
+      size: 9903468
+    - path: metrics/features.json
+      hash: md5
+      md5: 72457b39a39066563834475a09ba15b2
+      size: 237

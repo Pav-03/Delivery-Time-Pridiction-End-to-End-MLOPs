@@ -1,0 +1,10 @@
+{
+  "initial_rows": 328662,
+  "final_rows": 328662,
+  "train_rows": 226471,
+  "val_rows": 102191,
+  "features_created": 65,
+  "feature_memory_mb": 452.85924243927,
+  "target_mean": 15.252533301689882,
+  "target_std": 1.0454362120543421
+}
